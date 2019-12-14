@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import urllib.request
+import pafy
+import humanize
 import sys
 
 ui, _ = uic.loadUiType("view.ui")
@@ -28,6 +30,9 @@ class MainApp(QMainWindow, ui):
         # handle all buttons in the app
         self.pushButton.clicked.connect(self.Download)
         self.pushButton_2.clicked.connect(self.Handle_Browse)
+        self.pushButton_5.clicked.connect(self.Get_Video)
+        self.pushButton_4.clicked.connect(self.DownloadVideo)
+        self.pushButton_3.clicked.connect(self.Save_Browse)
 
     def Handle_Progress(self, blocknum, blocksize, totalsize):
         # Calculate progress bar
@@ -62,9 +67,61 @@ class MainApp(QMainWindow, ui):
 
         self.lineEdit_2.setText(str(save_location[0]))
 
+    # def Save_Browse(self):
+    #     # save location in the line edit
+    #     pass
+
+    # DOWNLOAD YOUTUBE VIDEO SINGLE
     def Save_Browse(self):
         # save location in the line edit
-        pass
+        # enable browseing in os, pick location
+        save_location = QFileDialog.getSaveFileName(self, caption="Save as", directory=".")
+
+        self.lineEdit_4.setText(str(save_location[0]))
+
+    def Get_Video(self):
+        video_url = self.lineEdit_3.text()
+        if video_url == '':
+            QMessageBox.warning(self, 'Ошибка', 'Provide valid Video URL')
+        else:
+            try:
+                video = pafy.new(video_url)
+                video_stream = video.videostreams
+
+                for streams in video_stream:
+                    size = humanize.naturalsize(streams.get_filesize())
+                    data = f'{streams.mediatype} {streams.extension} {streams.quality} {size}'
+                    self.comboBox.addItem(data)
+
+            except Exception:
+                QMessageBox.warning(self, 'Ошибка', 'Provide valid Video URL')
+
+    def DownloadVideo(self):
+        video_url = self.lineEdit_3.text()
+        location_path = self.lineEdit_4.text()
+
+        if video_url == '' or location_path == '':
+            QMessageBox.warning(self, 'Ошибка', 'Provide valid Video URL or save location path')
+        else:
+            try:
+                video = pafy.new(video_url)
+                video_stream = video.videostreams
+                quality = self.comboBox.currentIndex()
+
+                download = video_stream[quality].download(filepath=location_path, callback=self.Video_Progress)
+            except BaseException:
+                print(BaseException)
+
+    def Video_Progress(self, total, recived, ratio, rate, time):
+        read_data = recived
+        if total > 0:
+            download_percentage = read_data * 100 / total
+            self.progressBar_2.setValue(int(download_percentage))
+            remaining_time = round(time / 60, 2)
+
+            self.label_5.setText(str(f'{remaining_time} осталось минут'))
+
+            QApplication.processEvents()
 
 
 def main():
