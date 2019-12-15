@@ -6,6 +6,7 @@ import urllib.request
 import pafy
 import humanize
 import sys
+import ffmpeg
 
 ui, _ = uic.loadUiType("view.ui")
 
@@ -98,17 +99,23 @@ class MainApp(QMainWindow, ui):
 
     def DownloadVideo(self):
         video_url = self.lineEdit_3.text()
-        location_path = self.lineEdit_4.text()
+        location_path = self.lineEdit_4.text() + '.mp4'
 
         if video_url == '' or location_path == '':
             QMessageBox.warning(self, 'Ошибка', 'Provide valid Video URL or save location path')
         else:
             try:
                 video = pafy.new(video_url)
-                video_stream = video.videostreams
+                video_stream = video.getbest()
                 quality = self.comboBox.currentIndex()
 
-                download = video_stream[quality].download(filepath=location_path, callback=self.Video_Progress)
+                download = video_stream.download(filepath=location_path, callback=self.Video_Progress)
+
+                QMessageBox.information(self, 'Загузка завершена', 'Загузка успешно завершена')
+                self.lineEdit_3.setText('')
+                self.lineEdit_4.setText('')
+                self.progressBar_2.setValue(0)
+                self.comboBox.clear()
             except BaseException:
                 print(BaseException)
 
