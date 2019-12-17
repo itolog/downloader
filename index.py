@@ -6,7 +6,8 @@ import urllib.request
 import pafy
 import humanize
 import sys
-import ffmpeg
+import subprocess
+import os
 
 ui, _ = uic.loadUiType("view.ui")
 
@@ -100,24 +101,33 @@ class MainApp(QMainWindow, ui):
     def DownloadVideo(self):
         video_url = self.lineEdit_3.text()
         location_path = self.lineEdit_4.text() + '.mp4'
+        audio_location_path = self.lineEdit_4.text() + '.mp3'
+        final_path = self.lineEdit_4.text() + 'final.mp4'
 
         if video_url == '' or location_path == '':
             QMessageBox.warning(self, 'Ошибка', 'Provide valid Video URL or save location path')
         else:
             try:
                 video = pafy.new(video_url)
-                video_stream = video.getbest()
+                video_stream = video.videostreams
+                audio_stream = video.audiostreams
                 quality = self.comboBox.currentIndex()
 
-                download = video_stream.download(filepath=location_path, callback=self.Video_Progress)
+                download = video_stream[quality].download(filepath=location_path, callback=self.Video_Progress)
+                download_audio = audio_stream[1].download(filepath=audio_location_path)
+
+                subprocess.run(f'ffmpeg -i {audio_location_path} -i {location_path} {final_path}', shell=True)
+
+                os.remove(audio_location_path)
+                os.remove(location_path)
 
                 QMessageBox.information(self, 'Загузка завершена', 'Загузка успешно завершена')
                 self.lineEdit_3.setText('')
                 self.lineEdit_4.setText('')
                 self.progressBar_2.setValue(0)
                 self.comboBox.clear()
-            except BaseException:
-                print(BaseException)
+            except BaseException as e:
+                print(e)
 
     def Video_Progress(self, total, recived, ratio, rate, time):
         read_data = recived
