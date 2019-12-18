@@ -6,19 +6,43 @@ import urllib.request
 import pafy
 import humanize
 import sys
-import subprocess
 import os
+import ffmpeg
+import shutil
 
 ui, _ = uic.loadUiType("view.ui")
+
+
+class CloneThread(QThread, ui):
+    signal = pyqtSignal('PyQt_PyObject')
+
+    def __init__(self):
+        QThread.__init__(self)
+        self.video_path = os.path.join(os.getcwd(), 'a.mp4')
+        self.audio_path = os.path.join(os.getcwd(), 'a.mp3')
+
+    # run method gets called when we start the thread3
+    def run(self):
+        input_video = ffmpeg.input(self.video_path)
+        added_audio = ffmpeg.input(self.audio_path)
+        ffmp = ffmpeg.output(added_audio, input_video, 'out.mp4').run()
+        # git clone done, now inform the main thread with the output
+        self.signal.emit(ffmp)
 
 
 class MainApp(QMainWindow, ui):
     def __init__(self, parent=None):
         super().__init__(parent)
         QMainWindow.__init__(self)
+        self.location_path = ''
+        self.audio_location_path = ''
+        self.final_path = ''
         self.setupUi(self)
         self.InitUI()
         self.Handels_Buttons()
+        # Thread
+        self.ffmp_thread = CloneThread()
+        self.ffmp_thread.signal.connect(self.finished)
 
     def InitUI(self):
         # Contain all ui change
@@ -100,11 +124,11 @@ class MainApp(QMainWindow, ui):
 
     def DownloadVideo(self):
         video_url = self.lineEdit_3.text()
-        location_path = self.lineEdit_4.text() + '.mp4'
-        audio_location_path = self.lineEdit_4.text() + '.mp3'
-        final_path = self.lineEdit_4.text() + 'final.mp4'
+        self.location_path = os.path.join(os.getcwd(), 'a.mp4')
+        self.audio_location_path = os.path.join(os.getcwd(), 'a.mp3')
+        self.final_path = self.lineEdit_4.text() + 'final.mp4'
 
-        if video_url == '' or location_path == '':
+        if video_url == '' or self.location_path == '':
             QMessageBox.warning(self, 'Ошибка', 'Provide valid Video URL or save location path')
         else:
             try:
@@ -113,21 +137,28 @@ class MainApp(QMainWindow, ui):
                 audio_stream = video.audiostreams
                 quality = self.comboBox.currentIndex()
 
-                download = video_stream[quality].download(filepath=location_path, callback=self.Video_Progress)
-                download_audio = audio_stream[1].download(filepath=audio_location_path)
+                download = video_stream[quality].download(filepath=self.location_path, callback=self.Video_Progress)
+                download_audio = audio_stream[1].download(filepath=self.audio_location_path)
 
-                subprocess.run(f'ffmpeg -i {audio_location_path} -i {location_path} {final_path}', shell=True)
+                self.ffmp_thread.start()
 
-                os.remove(audio_location_path)
-                os.remove(location_path)
-
-                QMessageBox.information(self, 'Загузка завершена', 'Загузка успешно завершена')
-                self.lineEdit_3.setText('')
-                self.lineEdit_4.setText('')
-                self.progressBar_2.setValue(0)
-                self.comboBox.clear()
             except BaseException as e:
                 print(e)
+
+    def finished(self):
+        final_path = os.path.normpath(self.lineEdit_4.text() + '.mp4')
+        current_path = os.path.join(os.getcwd(), 'out.mp4')
+
+        shutil.move(current_path, final_path)
+
+        os.remove(os.path.join(os.getcwd(), 'a.mp4'))
+        os.remove(os.path.join(os.getcwd(), 'a.mp3'))
+
+        self.lineEdit_3.setText('')
+        self.lineEdit_4.setText('')
+        self.progressBar_2.setValue(0)
+        self.comboBox.clear()
+        QMessageBox.information(self, 'Загузка завершена', 'Загузка успешно завершена')
 
     def Video_Progress(self, total, recived, ratio, rate, time):
         read_data = recived
